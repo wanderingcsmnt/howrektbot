@@ -1,0 +1,15 @@
+{
+  "name": "how-rekt-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that tells you how rekt you are today",
+  "main": "bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5"
+  }
+}
