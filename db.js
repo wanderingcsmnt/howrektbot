@@ -52,4 +52,36 @@ function getHallOfShame(chatId, limit = 10) {
   return hallOfShameStmt.all(String(chatId), limit);
 }
 
-module.exports = { recordRoll, getTodayLeaderboard, getHallOfShame };
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_templates (
+    user_id     TEXT PRIMARY KEY,
+    template    TEXT NOT NULL
+  );
+`);
+
+const setTemplateStmt = db.prepare(`
+  INSERT INTO user_templates (user_id, template)
+  VALUES (?, ?)
+  ON CONFLICT(user_id) DO UPDATE SET template = excluded.template
+`);
+
+function setUserTemplate(userId, template) {
+  setTemplateStmt.run(String(userId), template);
+}
+
+const getTemplateStmt = db.prepare(`
+  SELECT template FROM user_templates WHERE user_id = ?
+`);
+
+function getUserTemplate(userId) {
+  const row = getTemplateStmt.get(String(userId));
+  return row ? row.template : null;
+}
+
+module.exports = {
+  recordRoll,
+  getTodayLeaderboard,
+  getHallOfShame,
+  setUserTemplate,
+  getUserTemplate,
+};

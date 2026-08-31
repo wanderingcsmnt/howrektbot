@@ -3,7 +3,7 @@ const TelegramBot = require("node-telegram-bot-api");
 
 const { rollRekt, todayKey } = require("./rekt");
 const { pickFlavor } = require("./flavors");
-const { recordRoll, getTodayLeaderboard, getHallOfShame } = require("./db");
+const { recordRoll, getTodayLeaderboard, getHallOfShame, setUserTemplate, getUserTemplate } = require("./db");
 
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) {
@@ -27,6 +27,16 @@ function displayName(from) {
 function bar(percent, width = 10) {
   const filled = Math.round((percent / 100) * width);
   return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+// Builds the shareable one-liner for a user's roll, using their custom
+// /text template if they've set one, otherwise a default phrasing.
+function buildShareMessage(userId, percent, flavor) {
+  const template = getUserTemplate(userId);
+  if (template) {
+    return template.replace(/%rekt%/g, `${percent}%`);
+  }
+  return `I'm not ${percent}% rekt or anything, but ${flavor}`;
 }
 
 bot.onText(/^\/(rekt|howrekt)(@\w+)?$/i, (msg) => {
@@ -87,6 +97,32 @@ bot.onText(/^\/rekthalloffame(@\w+)?$/i, (msg) => {
   });
 });
 
+bot.onText(/^\/text(@\w+)?(\s+([\s\S]*))?$/i, (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const customText = (match[3] || "").trim();
+
+  if (!customText) {
+    bot.sendMessage(
+      chatId,
+      "You forgot to specify your text! Example: /text I am not %rekt% rekt..."
+    );
+    return;
+  }
+
+  if (!customText.includes("%rekt%")) {
+    bot.sendMessage(
+      chatId,
+      "The custom message must contain one %rekt%, which will be replaced " +
+        "with the rekt-centage. (e.g. 50%)"
+    );
+    return;
+  }
+
+  setUserTemplate(userId, customText);
+  bot.sendMessage(chatId, "Got it — your custom rekt message is set.");
+});
+
 bot.onText(/^\/help(@\w+)?$/i, (msg) => {
   bot.sendMessage(
     msg.chat.id,
@@ -126,7 +162,7 @@ bot.on("inline_query", async (query) => {
     description: "Send your current rekt score to this chat.",
     thumb_url: `${ASSETS_BASE_URL}/rekt-thumb.png`,
     input_message_content: {
-      message_text: `I'm not ${percent}% rekt or anything, but ${flavor}`,
+      message_text: buildShareMessage(userId, percent, flavor),
     },
     reply_markup: {
       inline_keyboard: [
@@ -135,6 +171,12 @@ bot.on("inline_query", async (query) => {
     },
   };
 
+  const helpText =
+    `Either press the button attached to this message and select the chat ` +
+    `you would like to post in, or simply enter "@${botUsername} " into ` +
+    `your text box.\n\n` +
+    `For a personalized rekt message, send @${botUsername} a message!`;
+
   const helpResult = {
     type: "article",
     id: "help",
@@ -142,13 +184,12 @@ bot.on("inline_query", async (query) => {
     description: "Send the usage guidelines to this chat.",
     thumb_url: `${ASSETS_BASE_URL}/help-thumb.png`,
     input_message_content: {
-      message_text:
-        "*How Rekt Bot*\n\n" +
-        "/rekt — find out how rekt you are today (resets daily)\n" +
-        "/rektboard — today's leaderboard for this chat\n" +
-        "/rekthalloffame — worst rolls ever recorded in this chat\n" +
-        "Type @" + botUsername + " in any chat to share your score inline.",
-      parse_mode: "Markdown",
+      message_text: helpText,
+    },
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "Share your rekt score 💀", switch_inline_query: "" }],
+      ],
     },
   };
 
@@ -159,6 +200,22 @@ bot.on("inline_query", async (query) => {
   } catch (err) {
     console.error("Failed to answer inline query:", err.message);
   }
+});
+
+// Personalized DM: if someone messages the bot directly (not a slash
+// command, not in a group), reply with their rekt score conversationally.
+bot.on("message", (msg) => {
+  const isPrivateChat = msg.chat.type === "private";
+  const isCommand = msg.text && msg.text.startsWith("/");
+  if (!isPrivateChat || !msg.text || isCommand) return;
+
+  const userId = msg.from.id;
+  const dateKey = todayKey();
+
+  const { percent, seedIndex } = rollRekt(userId, dateKey);
+  const flavor = pickFlavor(percent, seedIndex);
+
+  bot.sendMessage(msg.chat.id, buildShareMessage(userId, percent, flavor));
 });
 
 console.log("How Rekt bot is running...");
