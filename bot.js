@@ -13,6 +13,11 @@ if (!TOKEN) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+let botUsername = "your_bot";
+bot.getMe().then((me) => {
+  botUsername = me.username;
+});
+
 function displayName(from) {
   if (from.username) return `@${from.username}`;
   return [from.first_name, from.last_name].filter(Boolean).join(" ") || "someone";
@@ -88,9 +93,51 @@ bot.onText(/^\/help(@\w+)?$/i, (msg) => {
     "*How Rekt Bot*\n\n" +
       "/rekt — find out how rekt you are today (resets daily)\n" +
       "/rektboard — today's leaderboard for this chat\n" +
-      "/rekthalloffame — worst rolls ever recorded in this chat",
+      "/rekthalloffame — worst rolls ever recorded in this chat\n" +
+      "Type @" + botUsername + " in any chat to share your score inline.",
     { parse_mode: "Markdown" }
   );
+});
+
+// Inline mode: lets someone type "@YourBotName" in ANY chat (without adding
+// the bot to it) and get a shareable result, like "via @HowGayBot" bots do.
+// Requires inline mode to be turned on for the bot via BotFather (/setinline).
+bot.on("inline_query", async (query) => {
+  const userId = query.from.id;
+  const name = displayName(query.from);
+  const dateKey = todayKey();
+
+  const { percent, seedIndex } = rollRekt(userId, dateKey);
+  const flavor = pickFlavor(percent, seedIndex);
+
+  const messageText =
+    `I'm not ${percent}% rekt or anything, but ${flavor}`;
+
+  const result = {
+    type: "article",
+    id: `rekt-${userId}-${dateKey}`,
+    title: `You are ${percent}% REKT today`,
+    description: flavor,
+    input_message_content: {
+      message_text: messageText,
+    },
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "Share your rekt score 💀",
+            switch_inline_query: "",
+          },
+        ],
+      ],
+    },
+  };
+
+  try {
+    await bot.answerInlineQuery(query.id, [result], { cache_time: 0 });
+  } catch (err) {
+    console.error("Failed to answer inline query:", err.message);
+  }
 });
 
 console.log("How Rekt bot is running...");
