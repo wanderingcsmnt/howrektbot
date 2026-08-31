@@ -102,39 +102,60 @@ bot.onText(/^\/help(@\w+)?$/i, (msg) => {
 // Inline mode: lets someone type "@YourBotName" in ANY chat (without adding
 // the bot to it) and get a shareable result, like "via @HowGayBot" bots do.
 // Requires inline mode to be turned on for the bot via BotFather (/setinline).
+//
+// Thumbnails must be public https URLs (Telegram can't accept local files
+// here), so this points at the PNGs in this repo's /assets folder via
+// GitHub's raw file host. Set ASSETS_BASE_URL as an environment variable to
+// something like:
+//   https://raw.githubusercontent.com/<your-username>/how-rekt-bot/main/assets
+const ASSETS_BASE_URL =
+  process.env.ASSETS_BASE_URL ||
+  "https://raw.githubusercontent.com/YOUR_USERNAME/how-rekt-bot/main/assets";
+
 bot.on("inline_query", async (query) => {
   const userId = query.from.id;
-  const name = displayName(query.from);
   const dateKey = todayKey();
 
   const { percent, seedIndex } = rollRekt(userId, dateKey);
   const flavor = pickFlavor(percent, seedIndex);
 
-  const messageText =
-    `I'm not ${percent}% rekt or anything, but ${flavor}`;
-
-  const result = {
+  const rektResult = {
     type: "article",
     id: `rekt-${userId}-${dateKey}`,
-    title: `You are ${percent}% REKT today`,
-    description: flavor,
+    title: "💀 How rekt are you?",
+    description: "Send your current rekt score to this chat.",
+    thumb_url: `${ASSETS_BASE_URL}/rekt-thumb.png`,
     input_message_content: {
-      message_text: messageText,
+      message_text: `I'm not ${percent}% rekt or anything, but ${flavor}`,
     },
     reply_markup: {
       inline_keyboard: [
-        [
-          {
-            text: "Share your rekt score 💀",
-            switch_inline_query: "",
-          },
-        ],
+        [{ text: "Share your rekt score 💀", switch_inline_query: "" }],
       ],
     },
   };
 
+  const helpResult = {
+    type: "article",
+    id: "help",
+    title: "❓ Help",
+    description: "Send the usage guidelines to this chat.",
+    thumb_url: `${ASSETS_BASE_URL}/help-thumb.png`,
+    input_message_content: {
+      message_text:
+        "*How Rekt Bot*\n\n" +
+        "/rekt — find out how rekt you are today (resets daily)\n" +
+        "/rektboard — today's leaderboard for this chat\n" +
+        "/rekthalloffame — worst rolls ever recorded in this chat\n" +
+        "Type @" + botUsername + " in any chat to share your score inline.",
+      parse_mode: "Markdown",
+    },
+  };
+
   try {
-    await bot.answerInlineQuery(query.id, [result], { cache_time: 0 });
+    await bot.answerInlineQuery(query.id, [rektResult, helpResult], {
+      cache_time: 0,
+    });
   } catch (err) {
     console.error("Failed to answer inline query:", err.message);
   }
