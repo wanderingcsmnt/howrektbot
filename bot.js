@@ -5,7 +5,7 @@ const { rollRekt, todayKey } = require("./rekt");
 const { pickFlavor } = require("./flavors");
 const { recordRoll, getTodayLeaderboard, getHallOfShame } = require("./db");
 
-const TOKEN = 8963106761:AAHB_EjX3BPeK6WnRYt0H1BY_DwLcvrDCpM;
+const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) {
   console.error("Missing BOT_TOKEN. Copy .env.example to .env and fill it in.");
   process.exit(1);
